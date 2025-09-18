@@ -138,7 +138,6 @@ export default function Page() {
       </section>
 
       <section className="flex flex-wrap items-center gap-3 mt-4 rounded-xl border border-zinc-800 p-4 bg-white/5">
-        <a className="text-sm text-zinc-200 underline underline-offset-4 decoration-dotted" href="#" target="_blank" rel="noreferrer">TokenWorks™</a>
         <a className="text-sm text-zinc-200 underline underline-offset-4 decoration-dotted" href="#" target="_blank" rel="noreferrer">Contract</a>
         <a className="text-sm text-zinc-200 underline underline-offset-4 decoration-dotted" href="#" target="_blank" rel="noreferrer">Geckoterminal</a>
         <a className="px-3 py-2 rounded-lg border border-zinc-800" href="#" target="_blank" rel="noreferrer">Buy $SHAPSTR</a>

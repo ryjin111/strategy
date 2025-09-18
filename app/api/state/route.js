@@ -1,26 +1,45 @@
-const baseState = globalThis.__shapelection_state || (globalThis.__shapelection_state = {
+const config = globalThis.__shapelection_config || (globalThis.__shapelection_config = {
   holdingsEth: 0.010,
-  collections: [
-    { id: 'tri', name: 'Triangles', floorEth: 0.150, acquiredCount: 0, acquireThreshold: 3 },
-    { id: 'sqr', name: 'Squares', floorEth: 0.120, acquiredCount: 0, acquireThreshold: 5 },
-    { id: 'crc', name: 'Circles', floorEth: 0.090, acquiredCount: 0, acquireThreshold: 4 },
-    { id: 'hex', name: 'Hexagons', floorEth: 0.200, acquiredCount: 0, acquireThreshold: 2 },
-  ],
+  collections: [],
   activeCollectionIndex: 0,
   rewardMultiplier: 0.02,
   holdings: [],
   sales: [],
 });
 
-function derive(state) {
-  const active = state.collections[state.activeCollectionIndex] || state.collections[0];
-  const goalEth = active.floorEth;
-  const rewardEth = Math.max(0.001, +(goalEth * (state.rewardMultiplier || 0.02)).toFixed(3));
-  const progressPercent = Math.min(100, (state.holdingsEth / goalEth) * 100);
-  const cheapestShape = `${active.name} — ${goalEth.toFixed(3)} ETH`;
-  return { ...state, goalEth, rewardEth, progressPercent, cheapestShape };
+async function fetchCollectionFloor(request, slug) {
+  if (!slug) return 0;
+  const base = new URL(request.url);
+  const endpoint = new URL(`/api/analytics?source=opensea&slug=${encodeURIComponent(slug)}`, base.origin);
+  const res = await fetch(endpoint.href, { next: { revalidate: 60 } });
+  if (!res.ok) return 0;
+  const json = await res.json();
+  return Number(json?.stats?.floorEth || 0);
 }
 
-export async function GET() {
-  return Response.json(derive(baseState));
+async function enrichCollectionsWithFloors(request, collections) {
+  const results = await Promise.all((collections || []).map(async (c) => {
+    const floorEth = await fetchCollectionFloor(request, c.slug);
+    return { ...c, floorEth: Number.isFinite(floorEth) ? floorEth : 0 };
+  }));
+  return results;
+}
+
+function derive(state, collectionsWithFloors) {
+  const safeCollections = collectionsWithFloors || state.collections || [];
+  const active = safeCollections[state.activeCollectionIndex] || safeCollections[0] || { name: '—', floorEth: 0 };
+  const goalEth = Number(active.floorEth || 0);
+  const rewardEth = Math.max(0.001, +(goalEth * (state.rewardMultiplier || 0.02)).toFixed(3));
+  const progressPercent = goalEth > 0 ? Math.min(100, (state.holdingsEth / goalEth) * 100) : 0;
+  const cheapestShape = `${active.name} — ${goalEth.toFixed(3)} ETH`;
+  return { ...state, collections: safeCollections, goalEth, rewardEth, progressPercent, cheapestShape };
+}
+
+export async function GET(request) {
+  try {
+    const collectionsWithFloors = await enrichCollectionsWithFloors(request, config.collections || []);
+    return Response.json(derive(config, collectionsWithFloors));
+  } catch (e) {
+    return new Response(JSON.stringify({ message: 'Failed to load state', error: String(e?.message || e) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
 } 

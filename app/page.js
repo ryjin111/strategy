@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 
 export default function Page() {
-  const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
   const [state, setState] = useState({
@@ -38,7 +37,6 @@ export default function Page() {
   }, []);
 
   const run = async (action, body) => {
-    if (action !== 'set-collection' && !connected) { setToast('Connect wallet first'); return; }
     try {
       const res = await fetch('/api/action', {
         method: 'POST',
@@ -64,10 +62,7 @@ export default function Page() {
             <p className="text-xs text-zinc-400 -mt-0.5">Perpetual Shape Machine™</p>
           </div>
         </div>
-        <button
-          onClick={() => setConnected(!connected)}
-          className={`px-4 py-2 rounded-lg border text-sm font-semibold transition ${connected ? 'border-zinc-800 bg-zinc-900' : 'border-zinc-800 bg-gradient-to-br from-cyan-500/15 to-emerald-400/15'}`}
-        >{connected ? 'Connected' : 'Connect Wallet'}</button>
+        <div />
       </header>
 
       <section className="grid md:grid-cols-2 gap-4 mt-4">
@@ -90,10 +85,7 @@ export default function Page() {
           </div>
           <div className="text-sm text-zinc-400 mt-1">{(state.progressPercent || 0).toFixed(1)}%</div>
 
-          <div className="flex flex-wrap gap-2 mt-3">
-            <button onClick={() => run('buy-floor')} className="px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900">Buy Floor </button>
-            <button onClick={() => run('process-sale')} className="px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900">Process Sale</button>
-          </div>
+
         </div>
       </section>
 
@@ -144,7 +136,7 @@ export default function Page() {
       </section>
 
       <footer className="text-center text-xs text-zinc-500 mt-6">
-        <p>Shapelection Strategy is not affiliated with any official NFT IP.</p>
+        <p>Shapelection Strategy is an experimental project inspired by PunkStrategy.</p>
         <p>© 2025 All rights reserved</p>
       </footer>
 

@@ -1,9 +1,23 @@
+function normalizeChain(input) {
+  const v = (input || '').toString().toLowerCase();
+  if (v === 'eth' || v === 'ethereum' || v === 'mainnet') return 'ethereum';
+  if (v === 'polygon' || v === 'matic') return 'matic';
+  if (v === 'base') return 'base';
+  if (v === 'arbitrum' || v === 'arb') return 'arbitrum';
+  if (v === 'optimism' || v === 'op') return 'optimism';
+  return v || 'ethereum';
+}
+
 export async function GET(request) {
   const url = new URL(request.url);
   const address = (url.searchParams.get('address') || '').trim().toLowerCase();
-  const chain = (url.searchParams.get('chain') || 'ethereum').toLowerCase();
+  const chain = 'shape';
   if (!/^0x[a-f0-9]{40}$/.test(address)) {
     return new Response(JSON.stringify({ message: 'Invalid address' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  if (chain === 'shape') {
+    return new Response(JSON.stringify({ message: 'Shape Chain detection not yet implemented. Integrate Shape MCP tools to resolve by address.', docs: 'https://github.com/shape-network/mcp-client-demo' }), { status: 501, headers: { 'Content-Type': 'application/json' } });
   }
 
   const apiBase = process.env.OPENSEA_API_BASE || 'https://api.opensea.io';
@@ -12,39 +26,54 @@ export async function GET(request) {
 
   async function tryFetch(urlStr) {
     const res = await fetch(urlStr, { headers, next: { revalidate: 120 } });
-    if (!res.ok) return null;
-    try { return await res.json(); } catch { return null; }
+    const text = await res.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch {}
+    return { ok: res.ok, status: res.status, text, json };
   }
 
   let name = null;
   let slug = null;
-  let raw = {};
+  const raw = {};
 
-  // Attempt 1: Get a sample NFT from the contract and read its collection info
-  const nftsUrl = `${apiBase}/api/v2/chain/${encodeURIComponent(chain)}/contract/${address}/nfts?limit=1`;
-  const nftsJson = await tryFetch(nftsUrl);
-  if (nftsJson && (nftsJson.nfts?.length || 0) > 0) {
-    const item = nftsJson.nfts[0];
-    raw.nftSample = item;
-    const c = item?.collection || {};
+  // Attempt 0: Contract metadata endpoint (if available)
+  const contractMetaUrl = `${apiBase}/api/v2/chain/${encodeURIComponent(chain)}/contract/${address}`;
+  {
+    const r = await tryFetch(contractMetaUrl);
+    raw.contractMeta = r.json || r.text;
+    const c = r.json?.collection || {};
     name = c.name || name;
     slug = c.slug || slug;
   }
 
-  // Attempt 2: Collections search by contract address (if available)
+  // Attempt 1: Sample NFT then infer collection
   if (!slug) {
-    const collectionsUrl = `${apiBase}/api/v2/collections?contract_address=${address}&limit=1`;
-    const colsJson = await tryFetch(collectionsUrl);
-    if (colsJson && (colsJson.collections?.length || 0) > 0) {
-      const col = colsJson.collections[0];
-      raw.collections = colsJson.collections;
+    const nftsUrl = `${apiBase}/api/v2/chain/${encodeURIComponent(chain)}/contract/${address}/nfts?limit=1`;
+    const r = await tryFetch(nftsUrl);
+    raw.nftSample = r.json || r.text;
+    const item = r.json?.nfts?.[0];
+    if (item) {
+      const c = item.collection || {};
+      name = c.name || name;
+      slug = c.slug || slug;
+    }
+  }
+
+  // Attempt 2: Collections search by contract address (+chain hint if supported)
+  if (!slug) {
+    const collectionsUrl = `${apiBase}/api/v2/collections?contract_address=${address}&chain=${encodeURIComponent(chain)}&limit=1`;
+    const r = await tryFetch(collectionsUrl);
+    raw.collections = r.json || r.text;
+    const col = r.json?.collections?.[0];
+    if (col) {
       name = col.name || name;
       slug = col.slug || slug;
     }
   }
 
   if (!slug) {
-    return new Response(JSON.stringify({ message: 'Could not resolve collection from address', chain, address, raw }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+    const hint = process.env.OPENSEA_API_KEY ? undefined : ' Missing OPENSEA_API_KEY may cause OpenSea v2 to deny requests.';
+    return new Response(JSON.stringify({ message: `Could not resolve collection from address.${hint || ''}`.trim(), chain, address, raw }), { status: 404, headers: { 'Content-Type': 'application/json' } });
   }
 
   // Fetch current floor using our analytics endpoint

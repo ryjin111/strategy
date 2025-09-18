@@ -7,7 +7,7 @@ export default function AdminPage() {
   const [toast, setToast] = useState('');
   const [collections, setCollections] = useState([]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [form, setForm] = useState({ id: '', name: '', slug: '', contractAddress: '', chain: 'ethereum', acquireThreshold: 1, detectedFloor: null });
+  const [form, setForm] = useState({ id: '', name: '', slug: '', contractAddress: '', chain: 'shape', acquireThreshold: 1, detectedFloor: null });
 
   useEffect(() => {
     let mounted = true;
@@ -100,22 +100,20 @@ export default function AdminPage() {
             <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="OpenSea Slug (e.g., cryptopunks)" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} />
             <div className="grid grid-cols-2 gap-2">
               <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="Contract Address (0x...)" value={form.contractAddress} onChange={e => setForm({ ...form, contractAddress: e.target.value })} />
-              <select className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" value={form.chain} onChange={e => setForm({ ...form, chain: e.target.value })}>
-                <option value="ethereum">Ethereum</option>
-                <option value="base">Base</option>
-                <option value="polygon">Polygon</option>
-                <option value="arbitrum">Arbitrum</option>
-                <option value="optimism">Optimism</option>
-              </select>
+              <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" value="Shape" disabled />
             </div>
             <div className="flex items-center gap-2">
               <button onClick={async () => {
                 try {
-                  const params = new URLSearchParams({ address: form.contractAddress || '', chain: form.chain || 'ethereum' });
+                  const address = (form.contractAddress || '').trim();
+                  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) { setToast('Enter a valid 0x contract address'); return; }
+                  const params = new URLSearchParams({ address, chain: 'shape' });
                   const res = await fetch(`/api/resolve-collection?${params.toString()}`);
                   const json = await res.json();
                   if (!res.ok) throw new Error(json.message || 'Resolve failed');
-                  setForm(f => ({ ...f, name: json.name || f.name, slug: json.slug || f.slug, detectedFloor: json.floorEth || null }));
+                  const slug = json.slug || '';
+                  const autoId = slug.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
+                  setForm(f => ({ ...f, id: f.id || autoId, name: json.name || f.name, slug: slug || f.slug, detectedFloor: json.floorEth || null }));
                   setToast('Detected collection');
                 } catch (e) {
                   setToast(e.message);

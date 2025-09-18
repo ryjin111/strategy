@@ -22,3 +22,14 @@ npm run dev
 
 - Reference UI/flow: [`https://www.punkstrategy.fun/app`](https://www.punkstrategy.fun/app)
 - Social reference: [`https://x.com/token_works/status/1968361945226166754`](https://x.com/token_works/status/1968361945226166754) 
+
+## Analytics API
+
+- Endpoint: `GET /api/analytics?source=opensea&slug={collectionSlug}`
+  - Optional env vars:
+    - `OPENSEA_API_KEY` — if set, included as `X-API-KEY`
+    - `OPENSEA_API_BASE` — defaults to `https://api.opensea.io`
+  - Returns normalized stats `{ floorEth, listedCount, oneDayVolume, oneDaySales, sevenDayVolume, sevenDaySales }` and a `raw` payload.
+
+- Placeholder: `GET /api/analytics?source=shape` returns 501 with a note to wire up Shape MCP.
+  - See the Shape MCP client demo for patterns: `https://github.com/shape-network/mcp-client-demo` 

@@ -76,7 +76,7 @@ export default function Page() {
           <div className="text-2xl font-extrabold mt-1">{state.holdingsEth.toFixed(3)} ETH</div>
         </div>
         <div className="rounded-xl border border-zinc-800 p-4 bg-white/5">
-          <h2 className="text-xs uppercase tracking-wide text-zinc-400 font-semibold">Cheapest Shape</h2>
+          <h2 className="text-xs uppercase tracking-wide text-zinc-400 font-semibold">Cheapest NFT in the current collection</h2>
           <div className="text-zinc-300">{loading ? 'Loading...' : (state.cheapestShape || '—')}</div>
           <div className="text-xs text-zinc-500 mt-1">Active: <span className="font-semibold text-zinc-300">{active.name}</span> · Floor {active.floorEth?.toFixed?.(3) || '0.000'} ETH</div>
         </div>
@@ -91,9 +91,8 @@ export default function Page() {
           <div className="text-sm text-zinc-400 mt-1">{(state.progressPercent || 0).toFixed(1)}%</div>
 
           <div className="flex flex-wrap gap-2 mt-3">
-            <button onClick={() => run('buy-floor')} className="px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900">Buy Floor Shape</button>
-            <button onClick={() => run('process-sale')} className="px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900">Process Shape Sale</button>
-            <button onClick={() => run('buy-burn')} className="px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900">Buy and Burn Tokens</button>
+            <button onClick={() => run('buy-floor')} className="px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900">Buy Floor </button>
+            <button onClick={() => run('process-sale')} className="px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900">Process Sale</button>
           </div>
         </div>
       </section>
@@ -104,7 +103,7 @@ export default function Page() {
           <List items={state.holdings} empty="No shapes currently held" />
         </div>
         <div className="rounded-xl border border-zinc-800 p-4 bg-white/5">
-          <h2 className="text-xs uppercase tracking-wide text-zinc-400 font-semibold">Previously Sold Shapes</h2>
+          <h2 className="text-xs uppercase tracking-wide text-zinc-400 font-semibold">Previously Sold</h2>
           <List items={state.sales} empty="No previous sales data" />
         </div>
       </section>

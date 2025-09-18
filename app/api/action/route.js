@@ -11,6 +11,11 @@ function activeCollection() {
   return config.collections[config.activeCollectionIndex] || config.collections[0] || null;
 }
 
+function shortAddress(addr) {
+  if (!addr) return '—';
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
 function rotateCollectionIfThreshold() {
   const col = activeCollection();
   if (!col) return;
@@ -23,13 +28,13 @@ function rotateCollectionIfThreshold() {
 
 async function fetchActiveFloor(request) {
   const col = activeCollection();
-  if (!col || !col.slug) return 0;
+  if (!col || !col.contractAddress) return 0;
   const base = new URL(request.url);
-  const endpoint = new URL(`/api/analytics?source=opensea&slug=${encodeURIComponent(col.slug)}`, base.origin);
+  const endpoint = new URL(`/api/analytics?source=shape&address=${encodeURIComponent(col.contractAddress)}`, base.origin);
   const res = await fetch(endpoint.href, { next: { revalidate: 60 } });
   if (!res.ok) return 0;
   const json = await res.json();
-  return Number(json?.stats?.floorEth || 0);
+  return Number(json?.stats?.floorEth || json?.floorEth || 0);
 }
 
 function derive(goalEthOverride) {
@@ -37,7 +42,8 @@ function derive(goalEthOverride) {
   const goalEth = Number.isFinite(goalEthOverride) ? goalEthOverride : Number(col.floorEth || 0);
   const rewardEth = Math.max(0.001, +(goalEth * (config.rewardMultiplier || 0.02)).toFixed(3));
   const progressPercent = goalEth > 0 ? Math.min(100, (config.holdingsEth / goalEth) * 100) : 0;
-  const cheapestShape = `${col.name} — ${goalEth.toFixed(3)} ETH`;
+  const label = col.name || shortAddress(col.contractAddress) || '—';
+  const cheapestShape = `${label} — ${goalEth.toFixed(3)} ETH`;
   return { ...config, goalEth, rewardEth, progressPercent, cheapestShape };
 }
 
@@ -59,7 +65,8 @@ export async function POST(request) {
       const id = Date.now().toString(36).slice(-6).toUpperCase();
       const col = activeCollection();
       col.acquiredCount = (col.acquiredCount || 0) + 1;
-      config.holdings.unshift({ title: `${col.name} #${id}`, subtitle: `Acquired for ${goal.toFixed(3)} ETH` });
+      const label = col.name || shortAddress(col.contractAddress) || '—';
+      config.holdings.unshift({ title: `${label} #${id}`, subtitle: `Acquired for ${goal.toFixed(3)} ETH` });
       message = 'Floor NFT purchased';
       rotateCollectionIfThreshold();
     } else {

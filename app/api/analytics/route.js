@@ -47,16 +47,45 @@ export async function GET(request) {
     }
 
     if (source === 'shape') {
-      // Placeholder for Shape MCP integration.
-      // In a full integration, this would call into a local MCP client or a proxy service
-      // to execute onchain tools and fetch collection analytics on Shape Chain.
-      return new Response(
-        JSON.stringify({
-          message: 'Shape MCP analytics not yet implemented in this app. See the Shape MCP client demo repository for integration patterns.',
-          reference: 'https://github.com/shape-network/mcp-client-demo',
-        }),
-        { status: 501, headers: { 'Content-Type': 'application/json' } }
-      );
+      const address = (url.searchParams.get('address') || '').trim().toLowerCase();
+      if (!/^0x[a-f0-9]{40}$/.test(address)) {
+        return new Response(JSON.stringify({ message: 'Missing or invalid address for Shape analytics' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // Primary: user-provided analytics endpoint
+      const shapeAnalyticsBase = process.env.SHAPE_ANALYTICS_URL;
+      if (shapeAnalyticsBase) {
+        const endpoint = `${shapeAnalyticsBase.replace(/\/$/, '')}/analytics?address=${address}`;
+        const res = await fetch(endpoint, { next: { revalidate: 60 } });
+        if (!res.ok) {
+          const text = await res.text();
+          return new Response(JSON.stringify({ message: `Shape analytics request failed (${res.status})`, detail: text }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+        }
+        const data = await res.json();
+        const floorEth = Number(data?.stats?.floorEth || data?.floorEth || 0);
+        const listedCount = Number(data?.stats?.listedCount || data?.listedCount || 0);
+        const oneDayVolume = Number(data?.stats?.oneDayVolume || data?.oneDayVolume || 0);
+        const oneDaySales = Number(data?.stats?.oneDaySales || data?.oneDaySales || 0);
+        const sevenDayVolume = Number(data?.stats?.sevenDayVolume || data?.sevenDayVolume || 0);
+        const sevenDaySales = Number(data?.stats?.sevenDaySales || data?.sevenDaySales || 0);
+        return Response.json({ source: 'shape', address, stats: { floorEth, listedCount, oneDayVolume, oneDaySales, sevenDayVolume, sevenDaySales }, raw: data });
+      }
+
+      // Secondary: MCP bridge endpoint if provided
+      const mcpBase = process.env.SHAPE_MCP_BASE;
+      if (mcpBase) {
+        const endpoint = `${mcpBase.replace(/\/$/, '')}/analytics/floor?address=${address}`;
+        const res = await fetch(endpoint, { next: { revalidate: 60 } });
+        if (!res.ok) {
+          const text = await res.text();
+          return new Response(JSON.stringify({ message: `Shape MCP analytics failed (${res.status})`, detail: text }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+        }
+        const data = await res.json();
+        const floorEth = Number(data?.floorEth || data?.stats?.floorEth || 0);
+        return Response.json({ source: 'shape', address, stats: { floorEth }, raw: data });
+      }
+
+      return new Response(JSON.stringify({ message: 'Shape analytics not configured. Set SHAPE_ANALYTICS_URL or SHAPE_MCP_BASE.' }), { status: 501, headers: { 'Content-Type': 'application/json' } });
     }
 
     return new Response(JSON.stringify({ message: `Unknown source: ${source}` }), { status: 400, headers: { 'Content-Type': 'application/json' } });

@@ -7,7 +7,7 @@ export default function AdminPage() {
   const [toast, setToast] = useState('');
   const [collections, setCollections] = useState([]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [form, setForm] = useState({ id: '', name: '', slug: '', contractAddress: '', chain: 'shape', acquireThreshold: 1, detectedFloor: null });
+  const [form, setForm] = useState({ contractAddress: '', acquireThreshold: 1, detectedFloor: null });
 
   useEffect(() => {
     let mounted = true;
@@ -29,17 +29,19 @@ export default function AdminPage() {
 
   const save = async () => {
     try {
+      const address = (form.contractAddress || '').trim();
+      if (!/^0x[a-fA-F0-9]{40}$/.test(address)) { setToast('Enter a valid 0x contract address'); return; }
       const res = await fetch('/api/admin/collections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify({ contractAddress: address, acquireThreshold: form.acquireThreshold })
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Save failed');
       setCollections(json.collections || []);
       setActiveIndex(json.activeCollectionIndex || 0);
       setToast('Saved');
-      setForm({ id: '', name: '', slug: '', contractAddress: '', chain: 'ethereum', acquireThreshold: 1, detectedFloor: null });
+      setForm({ contractAddress: '', acquireThreshold: 1, detectedFloor: null });
     } catch (e) {
       setToast(e.message);
     }
@@ -95,13 +97,8 @@ export default function AdminPage() {
         <div className="rounded-xl border border-zinc-800 p-4 bg-white/5">
           <h2 className="text-xs uppercase tracking-wide text-zinc-400 font-semibold">Add / Update Collection</h2>
           <div className="grid gap-2 mt-2">
-            <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="ID (e.g., punks)" value={form.id} onChange={e => setForm({ ...form, id: e.target.value })} />
-            <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-            <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="OpenSea Slug (e.g., cryptopunks)" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} />
-            <div className="grid grid-cols-2 gap-2">
-              <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="Contract Address (0x...)" value={form.contractAddress} onChange={e => setForm({ ...form, contractAddress: e.target.value })} />
-              <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" value="Shape" disabled />
-            </div>
+            <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="Contract Address (0x...)" value={form.contractAddress} onChange={e => setForm({ ...form, contractAddress: e.target.value })} />
+            <div className="text-xs text-zinc-500">Chain: <span className="text-zinc-300 font-semibold">Shape</span></div>
             <div className="flex items-center gap-2">
               <button onClick={async () => {
                 try {
@@ -111,9 +108,7 @@ export default function AdminPage() {
                   const res = await fetch(`/api/resolve-collection?${params.toString()}`);
                   const json = await res.json();
                   if (!res.ok) throw new Error(json.message || 'Resolve failed');
-                  const slug = json.slug || '';
-                  const autoId = slug.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
-                  setForm(f => ({ ...f, id: f.id || autoId, name: json.name || f.name, slug: slug || f.slug, detectedFloor: json.floorEth || null }));
+                  setForm(f => ({ ...f, detectedFloor: json.floorEth || null }));
                   setToast('Detected collection');
                 } catch (e) {
                   setToast(e.message);
@@ -138,8 +133,9 @@ export default function AdminPage() {
                   <li key={c.id} className={`px-3 py-3 rounded-lg border ${isActive ? 'border-cyan-500/40 bg-cyan-500/5' : 'border-zinc-800 bg-zinc-900'}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="font-semibold">{c.name} <span className="text-xs text-zinc-500">({c.id})</span></div>
-                        <div className="text-xs text-zinc-400">Slug: {c.slug}</div>
+                        <div className="font-semibold">{c.name || 'Unnamed'} <span className="text-xs text-zinc-500">({c.id})</span></div>
+                        <div className="text-xs text-zinc-400">Address: {c.contractAddress}</div>
+                        {c.floorEth != null && <div className="text-xs text-zinc-400">Floor: {Number(c.floorEth).toFixed(3)} ETH</div>}
                         <div className="text-xs text-zinc-400">Acquired {c.acquiredCount || 0} / {c.acquireThreshold || 1}</div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -147,12 +143,6 @@ export default function AdminPage() {
                         <button onClick={() => update(c.id, { acquiredCount: (c.acquiredCount || 0) + 1 })} className="px-2 py-1 rounded-md border border-zinc-800 text-xs">+1 Acquired</button>
                         <button onClick={() => remove(c.id)} className="px-2 py-1 rounded-md border border-red-800 text-xs text-red-300">Delete</button>
                       </div>
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800 text-xs" placeholder="Name" defaultValue={c.name} onBlur={e => update(c.id, { name: e.target.value })} />
-                      <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800 text-xs" placeholder="Slug" defaultValue={c.slug} onBlur={e => update(c.id, { slug: e.target.value })} />
-                      <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800 text-xs" placeholder="Threshold" type="number" defaultValue={c.acquireThreshold || 1} onBlur={e => update(c.id, { acquireThreshold: Number(e.target.value) })} />
-                      <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800 text-xs" placeholder="Acquired" type="number" defaultValue={c.acquiredCount || 0} onBlur={e => update(c.id, { acquiredCount: Number(e.target.value) })} />
                     </div>
                   </li>
                 );

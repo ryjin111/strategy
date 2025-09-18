@@ -7,29 +7,59 @@ const config = globalThis.__shapelection_config || (globalThis.__shapelection_co
   sales: [],
 });
 
+async function resolveByAddress(request, address) {
+  const base = new URL(request.url);
+  const res = await fetch(new URL(`/api/resolve-collection?address=${address}&chain=shape`, base.origin), { next: { revalidate: 60 } });
+  const json = await res.json();
+  return { ok: res.ok, data: json };
+}
+
+async function fetchShapeFloor(request, address) {
+  const base = new URL(request.url);
+  const res = await fetch(new URL(`/api/analytics?source=shape&address=${address}`, base.origin), { next: { revalidate: 60 } });
+  const json = await res.json();
+  return { ok: res.ok, data: json };
+}
+
 export async function GET() {
   return Response.json({ collections: config.collections || [], activeCollectionIndex: config.activeCollectionIndex || 0 });
 }
 
 export async function POST(request) {
   const body = await request.json();
-  const id = (body.id || body.slug || '').toString().trim();
-  const name = (body.name || '').toString().trim();
-  const slug = (body.slug || '').toString().trim();
-  const contractAddress = (body.contractAddress || body.address || '').toString().trim();
-  const chain = 'shape';
+  const contractAddress = (body.contractAddress || body.address || '').toString().trim().toLowerCase();
   const acquireThreshold = Number(body.acquireThreshold || 1);
 
-  if (!id || !name || !slug) {
-    return new Response(JSON.stringify({ message: 'Missing required fields: id/name/slug' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+  if (!/^0x[a-f0-9]{40}$/.test(contractAddress)) {
+    return new Response(JSON.stringify({ message: 'Missing or invalid contract address' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
-  const existingIdx = (config.collections || []).findIndex(c => c.id === id);
+  let id = (body.id || '').toString().trim();
+  let name = (body.name || '').toString().trim();
+  let slug = (body.slug || '').toString().trim();
+
+  // Auto-resolve if missing
+  if (!name || !slug) {
+    const r = await resolveByAddress(request, contractAddress);
+    if (r.ok) {
+      name = name || r.data?.name || '';
+      slug = slug || r.data?.slug || '';
+      if (!id && slug) id = slug.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
+    }
+  }
+
+  // Fallback ID from address
+  if (!id) id = contractAddress.slice(0, 10);
+
+  const floor = await fetchShapeFloor(request, contractAddress);
+  const floorEth = Number(floor?.data?.stats?.floorEth || floor?.data?.floorEth || 0);
+
+  const existingIdx = (config.collections || []).findIndex(c => c.contractAddress?.toLowerCase() === contractAddress);
   if (existingIdx >= 0) {
     const existing = config.collections[existingIdx];
-    config.collections[existingIdx] = { ...existing, name, slug, contractAddress, chain, acquireThreshold: Number.isFinite(acquireThreshold) ? acquireThreshold : existing.acquireThreshold };
+    config.collections[existingIdx] = { ...existing, id: existing.id || id, name: name || existing.name, slug: slug || existing.slug, contractAddress, chain: 'shape', acquireThreshold: Number.isFinite(acquireThreshold) ? acquireThreshold : existing.acquireThreshold, floorEth: floorEth || existing.floorEth };
   } else {
-    config.collections.push({ id, name, slug, contractAddress, chain, acquireThreshold: Number.isFinite(acquireThreshold) ? acquireThreshold : 1, acquiredCount: 0 });
+    config.collections.push({ id, name, slug, contractAddress, chain: 'shape', acquireThreshold: Number.isFinite(acquireThreshold) ? acquireThreshold : 1, acquiredCount: 0, floorEth: floorEth || 0 });
     if (config.collections.length === 1) config.activeCollectionIndex = 0;
   }
 
@@ -47,7 +77,7 @@ export async function PATCH(request) {
   const col = config.collections[idx];
   if (typeof body.name === 'string') col.name = body.name;
   if (typeof body.slug === 'string') col.slug = body.slug;
-  if (typeof body.contractAddress === 'string') col.contractAddress = body.contractAddress;
+  if (typeof body.contractAddress === 'string') col.contractAddress = body.contractAddress.toLowerCase();
   col.chain = 'shape';
   if (typeof body.acquireThreshold !== 'undefined') col.acquireThreshold = Number(body.acquireThreshold) || 1;
   if (typeof body.acquiredCount !== 'undefined') col.acquiredCount = Math.max(0, Number(body.acquiredCount) || 0);

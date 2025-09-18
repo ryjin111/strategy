@@ -17,7 +17,20 @@ export async function GET(request) {
   }
 
   if (chain === 'shape') {
-    return new Response(JSON.stringify({ message: 'Shape Chain detection not yet implemented. Integrate Shape MCP tools to resolve by address.', docs: 'https://github.com/shape-network/mcp-client-demo' }), { status: 501, headers: { 'Content-Type': 'application/json' } });
+    // Try Shape analytics endpoint for minimal resolution; if not configured, return floor 0 and unknown metadata.
+    const shapeAnalyticsBase = process.env.SHAPE_ANALYTICS_URL;
+    if (shapeAnalyticsBase) {
+      try {
+        const endpoint = `${shapeAnalyticsBase.replace(/\/$/, '')}/resolve?address=${address}`;
+        const res = await fetch(endpoint, { next: { revalidate: 60 } });
+        const json = await res.json();
+        const name = json?.name || null;
+        const slug = json?.slug || null;
+        const floorEth = Number(json?.floorEth || 0);
+        return Response.json({ name, slug, address, chain, floorEth, stats: { floorEth }, raw: json });
+      } catch {}
+    }
+    return Response.json({ name: null, slug: null, address, chain, floorEth: 0, stats: { floorEth: 0 } });
   }
 
   const apiBase = process.env.OPENSEA_API_BASE || 'https://api.opensea.io';

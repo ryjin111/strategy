@@ -7,19 +7,24 @@ const config = globalThis.__shapelection_config || (globalThis.__shapelection_co
   sales: [],
 });
 
-async function fetchCollectionFloor(request, slug) {
-  if (!slug) return 0;
+function shortAddress(addr) {
+  if (!addr) return '—';
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+async function fetchCollectionFloorShape(request, address) {
+  if (!address) return 0;
   const base = new URL(request.url);
-  const endpoint = new URL(`/api/analytics?source=opensea&slug=${encodeURIComponent(slug)}`, base.origin);
+  const endpoint = new URL(`/api/analytics?source=shape&address=${encodeURIComponent(address)}`, base.origin);
   const res = await fetch(endpoint.href, { next: { revalidate: 60 } });
   if (!res.ok) return 0;
   const json = await res.json();
-  return Number(json?.stats?.floorEth || 0);
+  return Number(json?.stats?.floorEth || json?.floorEth || 0);
 }
 
 async function enrichCollectionsWithFloors(request, collections) {
   const results = await Promise.all((collections || []).map(async (c) => {
-    const floorEth = await fetchCollectionFloor(request, c.slug);
+    const floorEth = await fetchCollectionFloorShape(request, c.contractAddress);
     return { ...c, floorEth: Number.isFinite(floorEth) ? floorEth : 0 };
   }));
   return results;
@@ -28,10 +33,11 @@ async function enrichCollectionsWithFloors(request, collections) {
 function derive(state, collectionsWithFloors) {
   const safeCollections = collectionsWithFloors || state.collections || [];
   const active = safeCollections[state.activeCollectionIndex] || safeCollections[0] || { name: '—', floorEth: 0 };
+  const activeName = active.name || shortAddress(active.contractAddress) || '—';
   const goalEth = Number(active.floorEth || 0);
   const rewardEth = Math.max(0.001, +(goalEth * (state.rewardMultiplier || 0.02)).toFixed(3));
   const progressPercent = goalEth > 0 ? Math.min(100, (state.holdingsEth / goalEth) * 100) : 0;
-  const cheapestShape = `${active.name} — ${goalEth.toFixed(3)} ETH`;
+  const cheapestShape = `${activeName} — ${goalEth.toFixed(3)} ETH`;
   return { ...state, collections: safeCollections, goalEth, rewardEth, progressPercent, cheapestShape };
 }
 

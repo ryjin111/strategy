@@ -7,7 +7,7 @@ export default function AdminPage() {
   const [toast, setToast] = useState('');
   const [collections, setCollections] = useState([]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [form, setForm] = useState({ id: '', name: '', slug: '', acquireThreshold: 1 });
+  const [form, setForm] = useState({ id: '', name: '', slug: '', contractAddress: '', chain: 'ethereum', acquireThreshold: 1, detectedFloor: null });
 
   useEffect(() => {
     let mounted = true;
@@ -39,7 +39,7 @@ export default function AdminPage() {
       setCollections(json.collections || []);
       setActiveIndex(json.activeCollectionIndex || 0);
       setToast('Saved');
-      setForm({ id: '', name: '', slug: '', acquireThreshold: 1 });
+      setForm({ id: '', name: '', slug: '', contractAddress: '', chain: 'ethereum', acquireThreshold: 1, detectedFloor: null });
     } catch (e) {
       setToast(e.message);
     }
@@ -98,6 +98,31 @@ export default function AdminPage() {
             <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="ID (e.g., punks)" value={form.id} onChange={e => setForm({ ...form, id: e.target.value })} />
             <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
             <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="OpenSea Slug (e.g., cryptopunks)" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} />
+            <div className="grid grid-cols-2 gap-2">
+              <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="Contract Address (0x...)" value={form.contractAddress} onChange={e => setForm({ ...form, contractAddress: e.target.value })} />
+              <select className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" value={form.chain} onChange={e => setForm({ ...form, chain: e.target.value })}>
+                <option value="ethereum">Ethereum</option>
+                <option value="base">Base</option>
+                <option value="polygon">Polygon</option>
+                <option value="arbitrum">Arbitrum</option>
+                <option value="optimism">Optimism</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={async () => {
+                try {
+                  const params = new URLSearchParams({ address: form.contractAddress || '', chain: form.chain || 'ethereum' });
+                  const res = await fetch(`/api/resolve-collection?${params.toString()}`);
+                  const json = await res.json();
+                  if (!res.ok) throw new Error(json.message || 'Resolve failed');
+                  setForm(f => ({ ...f, name: json.name || f.name, slug: json.slug || f.slug, detectedFloor: json.floorEth || null }));
+                  setToast('Detected collection');
+                } catch (e) {
+                  setToast(e.message);
+                }
+              }} className="px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900">Detect</button>
+              {form.detectedFloor != null && <div className="text-xs text-zinc-400">Floor: {Number(form.detectedFloor).toFixed(3)} ETH</div>}
+            </div>
             <input className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800" placeholder="Acquire Threshold" type="number" value={form.acquireThreshold} onChange={e => setForm({ ...form, acquireThreshold: Number(e.target.value) })} />
             <button onClick={save} className="px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-900">Save</button>
           </div>

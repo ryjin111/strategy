@@ -16,6 +16,8 @@ export async function POST(request) {
   const id = (body.id || body.slug || '').toString().trim();
   const name = (body.name || '').toString().trim();
   const slug = (body.slug || '').toString().trim();
+  const contractAddress = (body.contractAddress || body.address || '').toString().trim();
+  const chain = (body.chain || 'ethereum').toString().trim().toLowerCase();
   const acquireThreshold = Number(body.acquireThreshold || 1);
 
   if (!id || !name || !slug) {
@@ -25,9 +27,9 @@ export async function POST(request) {
   const existingIdx = (config.collections || []).findIndex(c => c.id === id);
   if (existingIdx >= 0) {
     const existing = config.collections[existingIdx];
-    config.collections[existingIdx] = { ...existing, name, slug, acquireThreshold: Number.isFinite(acquireThreshold) ? acquireThreshold : existing.acquireThreshold };
+    config.collections[existingIdx] = { ...existing, name, slug, contractAddress, chain, acquireThreshold: Number.isFinite(acquireThreshold) ? acquireThreshold : existing.acquireThreshold };
   } else {
-    config.collections.push({ id, name, slug, acquireThreshold: Number.isFinite(acquireThreshold) ? acquireThreshold : 1, acquiredCount: 0 });
+    config.collections.push({ id, name, slug, contractAddress, chain, acquireThreshold: Number.isFinite(acquireThreshold) ? acquireThreshold : 1, acquiredCount: 0 });
     if (config.collections.length === 1) config.activeCollectionIndex = 0;
   }
 
@@ -45,6 +47,8 @@ export async function PATCH(request) {
   const col = config.collections[idx];
   if (typeof body.name === 'string') col.name = body.name;
   if (typeof body.slug === 'string') col.slug = body.slug;
+  if (typeof body.contractAddress === 'string') col.contractAddress = body.contractAddress;
+  if (typeof body.chain === 'string') col.chain = body.chain.toLowerCase();
   if (typeof body.acquireThreshold !== 'undefined') col.acquireThreshold = Number(body.acquireThreshold) || 1;
   if (typeof body.acquiredCount !== 'undefined') col.acquiredCount = Math.max(0, Number(body.acquiredCount) || 0);
   if (typeof body.active !== 'undefined' && body.active) config.activeCollectionIndex = idx;

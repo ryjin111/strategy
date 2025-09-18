@@ -11,7 +11,7 @@ function normalizeChain(input) {
 export async function GET(request) {
   const url = new URL(request.url);
   const address = (url.searchParams.get('address') || '').trim().toLowerCase();
-  const chain = 'shape';
+  const chain = normalizeChain(url.searchParams.get('chain') || 'shape');
   if (!/^0x[a-f0-9]{40}$/.test(address)) {
     return new Response(JSON.stringify({ message: 'Invalid address' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
@@ -33,6 +33,7 @@ export async function GET(request) {
     return Response.json({ name: null, slug: null, address, chain, floorEth: 0, stats: { floorEth: 0 } });
   }
 
+  // Ethereum and other OpenSea-supported chains: use OpenSea to resolve
   const apiBase = process.env.OPENSEA_API_BASE || 'https://api.opensea.io';
   const headers = {};
   if (process.env.OPENSEA_API_KEY) headers['X-API-KEY'] = process.env.OPENSEA_API_KEY;
@@ -49,7 +50,7 @@ export async function GET(request) {
   let slug = null;
   const raw = {};
 
-  // Attempt 0: Contract metadata endpoint (if available)
+  // Attempt contract metadata if available
   const contractMetaUrl = `${apiBase}/api/v2/chain/${encodeURIComponent(chain)}/contract/${address}`;
   {
     const r = await tryFetch(contractMetaUrl);
@@ -58,8 +59,6 @@ export async function GET(request) {
     name = c.name || name;
     slug = c.slug || slug;
   }
-
-  // Attempt 1: Sample NFT then infer collection
   if (!slug) {
     const nftsUrl = `${apiBase}/api/v2/chain/${encodeURIComponent(chain)}/contract/${address}/nfts?limit=1`;
     const r = await tryFetch(nftsUrl);
@@ -71,8 +70,6 @@ export async function GET(request) {
       slug = c.slug || slug;
     }
   }
-
-  // Attempt 2: Collections search by contract address (+chain hint if supported)
   if (!slug) {
     const collectionsUrl = `${apiBase}/api/v2/collections?contract_address=${address}&chain=${encodeURIComponent(chain)}&limit=1`;
     const r = await tryFetch(collectionsUrl);
@@ -89,7 +86,7 @@ export async function GET(request) {
     return new Response(JSON.stringify({ message: `Could not resolve collection from address.${hint || ''}`.trim(), chain, address, raw }), { status: 404, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Fetch current floor using our analytics endpoint
+  // Fetch floor with analytics/opensea
   try {
     const base = new URL(request.url);
     const analyticsUrl = new URL(`/api/analytics?source=opensea&slug=${encodeURIComponent(slug)}`, base.origin);
@@ -101,4 +98,6 @@ export async function GET(request) {
   } catch (e) {
     return Response.json({ name, slug, address, chain, floorEth: 0, raw, error: String(e?.message || e) });
   }
+
+
 } 

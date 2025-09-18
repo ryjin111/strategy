@@ -92,7 +92,7 @@ export default function Page() {
       <section className="grid md:grid-cols-2 gap-4 mt-4">
         <div className="rounded-xl border border-zinc-800 p-4 bg-white/5">
           <h2 className="text-xs uppercase tracking-wide text-zinc-400 font-semibold">Currently Holding</h2>
-          <List items={state.holdings} empty="No shapes currently held" />
+          <List items={state.holdings} empty="No NFTs currently held" />
         </div>
         <div className="rounded-xl border border-zinc-800 p-4 bg-white/5">
           <h2 className="text-xs uppercase tracking-wide text-zinc-400 font-semibold">Previously Sold</h2>
